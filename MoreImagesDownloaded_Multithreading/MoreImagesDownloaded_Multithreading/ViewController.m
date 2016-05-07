@@ -17,6 +17,8 @@
 
 @property(strong,nonatomic)NSOperationQueue* queue;
 
+@property(strong,nonatomic)NSMutableDictionary* operations;
+
 @end
 
 @implementation ViewController
@@ -42,6 +44,14 @@
         _queue=[[NSOperationQueue alloc]init];
     }
     return _queue;
+}
+
+-(NSMutableDictionary *)operations
+{
+    if (_operations==nil) {
+        _operations=[NSMutableDictionary dictionary];
+    }
+    return _operations;
 }
 
 - (void)viewDidLoad {
@@ -75,8 +85,6 @@
        
         cell.imageView.image=image;
         
-        NSLog(@"已经有了图片，从缓存中直接加载");
-        
     }else{
         
         //得到沙盒下Caches文件夹路径
@@ -96,44 +104,64 @@
             
             cell.imageView.image=image;
             
+            //存入缓存字典中
             self.appCaches[app.icon]=image;
             
-            NSLog(@"已经有了图片，从沙盒中直接加载");
-            
         }else{
-           
-            //如果沙盒中不存在，则下载完成，加载之后，写入沙盒中
-            NSString *imageUrl=app.icon;
+           //需要下载前显示占位图片
+            cell.imageView.image=[UIImage imageNamed:@"imageHolder"];
             
-            NSURL* url=[NSURL URLWithString:imageUrl];
+            NSOperation* operation=self.operations[app.icon];
             
-            //给线程队列添加事件，开启子线程
-            [self.queue addOperationWithBlock:^{
-             
-                NSData* data=[NSData dataWithContentsOfURL:url];
+            //如果线程队列中没有该线程，则重新创建并加入，再下载
+            if (operation==nil) {
+               
+                //如果沙盒中不存在，则下载完成，加载之后，写入沙盒中
+                NSString *imageUrl=app.icon;
                 
-                UIImage* image=[UIImage imageWithData:data];
+                NSURL* url=[NSURL URLWithString:imageUrl];
                 
-                //假设下载文件很大，需要1s的时间
-                [NSThread sleepForTimeInterval:1.0];
-                
-                //回主线程更新界面
-                [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+                //给线程队列添加事件，开启子线程
+                operation=[NSBlockOperation blockOperationWithBlock:^{
                     
-                    cell.imageView.image=image;
+                    NSData* data=[NSData dataWithContentsOfURL:url];
+                    
+                    //如果数据下载失败，删除线程队列中的该任务并跳出当前方法，防止程序崩溃
+                    if (data==nil) {
+                        
+                        [self.operations removeObjectForKey:app.icon];
+                        
+                        return;
+                    }
+                    
+                    UIImage* image=[UIImage imageWithData:data];
+                    
+                    //假设下载文件很大，需要1s的时间
+                    [NSThread sleepForTimeInterval:1.0];
+                    
+                    //存入缓存字典中
+                    self.appCaches[app.icon]=image;
+                    
+                    //回主线程更新界面（刷新当前行）
+                    [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+                        
+                        [tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationNone];
+                        
+                    }];
+                    
+                    //将下载好的数据写入沙盒中
+                    [data writeToFile:imagePath atomically:YES];
+                    //移除操作
+                    [self.operations removeObjectForKey:app.icon];
                     
                 }];
                 
-                self.appCaches[app.icon]=image;
-                
-                //将下载好的数据写入沙盒中
-                [data writeToFile:imagePath atomically:YES];
-            }];
-            
-            NSLog(@"没有图片，下载完成再加载");
+                //加入任务队列开始下载
+                [self.queue addOperation:operation];
+                //加入线程队列，记住该任务的状态
+                self.operations[app.icon]=operation;
+            }
         }
-        
-        
         
     }
     
