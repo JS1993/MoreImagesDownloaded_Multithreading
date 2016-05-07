@@ -66,23 +66,54 @@
        
         cell.imageView.image=image;
         
-        NSLog(@"已经有了图片，直接加载");
+        NSLog(@"已经有了图片，从缓存中直接加载");
         
     }else{
         
-        NSString *imageUrl=app.icon;
+        //得到沙盒下Caches文件夹路径
+        NSString* cachesPath=NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES)[0];
+        //得到图片文件名
+        NSString* fileName=[app.icon lastPathComponent];
+        //得到图片文件的全路径
+        NSString* imagePath=[cachesPath stringByAppendingPathComponent:fileName];
+        //加载该文件数据
+        NSData* data=[NSData dataWithContentsOfFile:imagePath];
         
-        NSURL* url=[NSURL URLWithString:imageUrl];
+        //判断沙盒中是否存在文件
+        if (data) {
+            
+            //如果沙盒中存在，直接加载
+            UIImage* image=[UIImage imageWithData:data];
+            
+            cell.imageView.image=image;
+            
+            self.appCaches[app.icon]=image;
+            
+            NSLog(@"已经有了图片，从沙盒中直接加载");
+            
+        }else{
+           
+            //如果沙盒中不存在，则下载完成，加载之后，写入沙盒中
+            NSString *imageUrl=app.icon;
+            
+            NSURL* url=[NSURL URLWithString:imageUrl];
+            
+            NSData* data=[NSData dataWithContentsOfURL:url];
+            
+            UIImage* image=[UIImage imageWithData:data];
+            
+            cell.imageView.image=image;
+            
+            self.appCaches[app.icon]=image;
+            
+            [data writeToFile:imagePath atomically:YES];
+            
+            NSLog(@"%@",imagePath);
+            
+            NSLog(@"没有图片，下载完成再加载");
+        }
         
-        NSData* data=[NSData dataWithContentsOfURL:url];
         
-        image=[UIImage imageWithData:data];
-        
-        cell.imageView.image=image;
-        
-        self.appCaches[app.icon]=image;
-        
-        NSLog(@"没有图片，下载完成再加载");
         
     }
     
