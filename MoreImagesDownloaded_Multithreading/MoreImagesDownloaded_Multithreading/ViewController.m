@@ -54,16 +54,37 @@
     
     UITableViewCell* cell=[tableView dequeueReusableCellWithIdentifier:identifier forIndexPath:indexPath];
     
-    cell.textLabel.text=[self.apps[indexPath.row] name];
+    App* app=self.apps[indexPath.row];
     
-    cell.detailTextLabel.text=[self.apps[indexPath.row] download];
+    cell.textLabel.text=app.name;
     
-    NSString *imageUrl=(NSString*)[self.apps[indexPath.row] icon];
+    cell.detailTextLabel.text=app.download;
     
-    NSURL* url=[NSURL URLWithString:imageUrl];
+    UIImage* image=self.appCaches[app.icon];
     
-    NSData*
-    
+    if (image) {
+       
+        cell.imageView.image=image;
+        
+        NSLog(@"已经有了图片，直接加载");
+        
+    }else{
+        
+        NSString *imageUrl=app.icon;
+        
+        NSURL* url=[NSURL URLWithString:imageUrl];
+        
+        NSData* data=[NSData dataWithContentsOfURL:url];
+        
+        image=[UIImage imageWithData:data];
+        
+        cell.imageView.image=image;
+        
+        self.appCaches[app.icon]=image;
+        
+        NSLog(@"没有图片，下载完成再加载");
+        
+    }
     
     return cell;
 }
