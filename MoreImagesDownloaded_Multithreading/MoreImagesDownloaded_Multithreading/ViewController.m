@@ -15,6 +15,8 @@
 
 @property(strong,nonatomic)NSMutableDictionary* appCaches;
 
+@property(strong,nonatomic)NSOperationQueue* queue;
+
 @end
 
 @implementation ViewController
@@ -34,6 +36,13 @@
     return _apps;
 }
 
+-(NSOperationQueue *)queue
+{
+    if (_queue==nil) {
+        _queue=[[NSOperationQueue alloc]init];
+    }
+    return _queue;
+}
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -98,17 +107,28 @@
             
             NSURL* url=[NSURL URLWithString:imageUrl];
             
-            NSData* data=[NSData dataWithContentsOfURL:url];
-            
-            UIImage* image=[UIImage imageWithData:data];
-            
-            cell.imageView.image=image;
-            
-            self.appCaches[app.icon]=image;
-            
-            [data writeToFile:imagePath atomically:YES];
-            
-            NSLog(@"%@",imagePath);
+            //给线程队列添加事件，开启子线程
+            [self.queue addOperationWithBlock:^{
+             
+                NSData* data=[NSData dataWithContentsOfURL:url];
+                
+                UIImage* image=[UIImage imageWithData:data];
+                
+                //假设下载文件很大，需要1s的时间
+                [NSThread sleepForTimeInterval:1.0];
+                
+                //回主线程更新界面
+                [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+                    
+                    cell.imageView.image=image;
+                    
+                }];
+                
+                self.appCaches[app.icon]=image;
+                
+                //将下载好的数据写入沙盒中
+                [data writeToFile:imagePath atomically:YES];
+            }];
             
             NSLog(@"没有图片，下载完成再加载");
         }
